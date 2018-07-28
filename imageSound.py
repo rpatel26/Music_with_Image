@@ -63,79 +63,6 @@ class ImageSound(object):
 
 		return x, y
 
-	def find_order(self, size):
-		# print("finding order of: ", size)
-		order = 0
-
-		while size > 1:
-			size = int(size / 2)
-			order += 1
-
-		return order
-
-	def resize(self, image, size, t = Image.NEAREST):
-		return image.resize((size, size), t)
-
-	def get_raw_values (self):
-		image = Image.open(self.imageFile)
-		width, height = image.size
-
-		order = self.find_order(min(width, height))
-		size = 2 ** order
-
-		newImage = self.resize(image, size, t = Image.NEAREST)
-		pix = newImage.load()
-
-		triverse_order = np.empty((size, size))
-		# triverse_value = np.empty((size * size, 3))
-		triverse_value = np.empty((size*size, 1))
-
-		for d in range ( 0, size * size ):
-			x, y = self.__d2xy__( order, d )
-			triverse_order[x,y] = d
-			values = pix[x,y]
-			values = (values[0] + values[1] + values[2]) / 3
-			# values = 255 - values
-			triverse_value[d] = values
-
-		triverse_value = triverse_value.astype('uint8')
-
-		return triverse_value
-
-	def running_mean(self, x, windowSize):
-		cumsum = np.cumsum(np.insert(x, 0, 0)) 
-		return (cumsum[windowSize:] - cumsum[:-windowSize]) / windowSize		
-
-	def interpret_wav(self, raw_bytes, n_frames, n_channels, sample_width, interleaved = True):
-		if sample_width == 1:
-			dtype = np.uint8 # unsigned char
-		elif sample_width == 2:
-			dtype = np.int16 # signed 2-byte short
-		else:
-			raise ValueError("Only supports 8 and 16 bit audio formats.")
-
-		channels = np.fromstring(raw_bytes, dtype=dtype)
-
-		if interleaved:
-			# channels are interleaved, i.e. sample N of channel M follows sample N of channel M-1 in raw data
-			channels.shape = (n_frames, n_channels)
-			channels = channels.T
-		else:
-			# channels are not interleaved. All samples from channel M occur before all samples from channel M-1
-			channels.shape = (n_channels, n_frames)
-
-		return channels
-
-	def getOutFileName(self):
-		s = '/'
-		path = os.path.normpath(self.imageFile)
-		path_array = path.split(os.sep)
-		newFileName = 'filtered_' + path_array[-1][:-3] + 'wav'
-		path_array[-1] = newFileName
-		newFileName = s.join(path_array)
-
-		return newFileName
-
 	def filterSound(self, cuttOff = 400.0):
 		fname = self.getWAVfromImg()
 		outname = self.getOutFileName()
@@ -167,25 +94,81 @@ class ImageSound(object):
 
 		return outname
 
-	def playFilteredImage(self):
-		fName = self.filterSound()
-		print("playing filtered image")
-		self.play(fName)
+	def findOrder(self, size):
+		# print("finding order of: ", size)
+		order = 0
+
+		while size > 1:
+			size = int(size / 2)
+			order += 1
+
+		return order
+
+	def getOutFileName(self):
+		s = '/'
+		path = os.path.normpath(self.imageFile)
+		path_array = path.split(os.sep)
+		newFileName = 'filtered_' + path_array[-1][:-3] + 'wav'
+		path_array[-1] = newFileName
+		newFileName = s.join(path_array)
+
+		return newFileName
+
+	def getRawValues(self):
+		image = Image.open(self.imageFile)
+		width, height = image.size
+
+		order = self.findOrder(min(width, height))
+		size = 2 ** order
+
+		newImage = self.resize(image, size, t = Image.NEAREST)
+		pix = newImage.load()
+
+		triverse_order = np.empty((size, size))
+		# triverse_value = np.empty((size * size, 3))
+		triverse_value = np.empty((size*size, 1))
+
+		for d in range ( 0, size * size ):
+			x, y = self.__d2xy__( order, d )
+			triverse_order[x,y] = d
+			values = pix[x,y]
+			values = (values[0] + values[1] + values[2]) / 3
+			# values = 255 - values
+			triverse_value[d] = values
+
+		triverse_value = triverse_value.astype('uint8')
+
+		return triverse_value
 
 	def getWAVfromImg(self, filename = None, rate = 44100):
 		if filename is None:
 			filename = self.imageFile
 
-		raw_values = self.get_raw_values()
+		raw_values = self.getRawValues()
 		newFileName = filename[:-3] + 'wav'
 		sio.write(newFileName, rate, raw_values)
 
 		return newFileName
 
-	def playImage(self, filename = None, rate = 44100):
-		newFileName = self.getWAVfromImg(filename, rate)
-		print("playing raw image")
-		self.play(newFileName)
+	def interpret_wav(self, raw_bytes, n_frames, n_channels, sample_width, interleaved = True):
+		if sample_width == 1:
+			dtype = np.uint8 # unsigned char
+		elif sample_width == 2:
+			dtype = np.int16 # signed 2-byte short
+		else:
+			raise ValueError("Only supports 8 and 16 bit audio formats.")
+
+		channels = np.fromstring(raw_bytes, dtype=dtype)
+
+		if interleaved:
+			# channels are interleaved, i.e. sample N of channel M follows sample N of channel M-1 in raw data
+			channels.shape = (n_frames, n_channels)
+			channels = channels.T
+		else:
+			# channels are not interleaved. All samples from channel M occur before all samples from channel M-1
+			channels.shape = (n_channels, n_frames)
+
+		return channels
 
 	def play(self, filename):
 		CHUNK = 1024
@@ -205,17 +188,31 @@ class ImageSound(object):
 		# read data
 		data = wf.readframes(CHUNK)   # type(data) = <class 'bytes'>
 
-
-
 		# play stream (3)
 		while len(data) > 0:
 		  stream.write(data)  # data is of type <class 'bytes'>
 		  data = wf.readframes(CHUNK)
 
-
 		# stop stream (4)
 		stream.stop_stream()
 		stream.close()
-
+		
 		# close PyAudio (5)
 		p.terminate()
+
+	def playImage(self, filename = None, rate = 44100):
+		newFileName = self.getWAVfromImg(filename, rate)
+		print("playing raw image")
+		self.play(newFileName)
+
+	def playFilteredImage(self):
+		fName = self.filterSound()
+		print("playing filtered image")
+		self.play(fName)
+
+	def resize(self, image, size, t = Image.NEAREST):
+		return image.resize((size, size), t)
+
+	def running_mean(self, x, windowSize):
+		cumsum = np.cumsum(np.insert(x, 0, 0)) 
+		return (cumsum[windowSize:] - cumsum[:-windowSize]) / windowSize	
