@@ -9,6 +9,10 @@ import os
 import math
 import contextlib
 
+'''
+Class: ImageSound()
+Description: the following class generates sound based on an image
+'''
 class ImageSound(object):
 
 	'''
