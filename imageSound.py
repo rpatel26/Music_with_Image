@@ -1,20 +1,22 @@
 import numpy as np
 import scipy.io.wavfile as sio
-import PIL
+# import PIL
 from PIL import Image
 import pyaudio
 import wave
 import sys
 import os
-import matplotlib.pyplot as plt
 import math
 import contextlib
-
 
 class ImageSound(object):
 
 	'''
-	filename -- includes full path name
+	Name: __init__()
+	Description: constructor of the ImageSound class.
+	Parameters:
+		filename -- full path of the image to be played
+	Return Values: none
 	'''
 	def __init__(self, filename = None):
 		if filename is None:
@@ -63,6 +65,13 @@ class ImageSound(object):
 
 		return x, y
 
+	'''
+	Name: filterSound()
+	Description: filter sound for the raw image
+	Parameters: 
+		cuttOff -- cutt off frequency 
+	Return Values: none
+	'''
 	def filterSound(self, cuttOff = 400.0):
 		fname = self.getWAVfromImg()
 		outname = self.getOutFileName()
@@ -77,7 +86,7 @@ class ImageSound(object):
 			# Extract Raw Audio from multi-channel Wav File
 			signal = spf.readframes(nFrames*nChannels)
 			spf.close()
-			channels = self.interpret_wav(signal, nFrames, nChannels, ampWidth, True)
+			channels = self.__interpret_wav(signal, nFrames, nChannels, ampWidth, True)
 
 			# get window size
 			# from http://dsp.stackexchange.com/questions/9966/what-is-the-cut-off-frequency-of-a-moving-average-filter
@@ -85,7 +94,7 @@ class ImageSound(object):
 			N = int(math.sqrt(0.196196 + freqRatio**2)/freqRatio)
 
 			# Use moviung average (only on first channel)
-			filtered = self.running_mean(channels[0], N).astype(channels.dtype)
+			filtered = self.__running_mean(channels[0], N).astype(channels.dtype)
 
 			wav_file = wave.open(outname, "w")
 			wav_file.setparams((1, ampWidth, sampleRate, nFrames, spf.getcomptype(), spf.getcompname()))
@@ -94,6 +103,14 @@ class ImageSound(object):
 
 		return outname
 
+	'''
+	Name: findOrder
+	Description: find the order of the Hilber curve
+	Parameters: 
+		size -- max size of the image
+	Return Values:
+		order -- order of the Hilber curve
+	'''
 	def findOrder(self, size):
 		# print("finding order of: ", size)
 		order = 0
@@ -104,6 +121,13 @@ class ImageSound(object):
 
 		return order
 
+	'''
+	Name: getOutFileName()
+	Description: generates the full path name for the filtered sound file
+	Parameters: none
+	Return Values:
+		newFileName -- full path name for the filtered sound file
+	'''
 	def getOutFileName(self):
 		s = '/'
 		path = os.path.normpath(self.imageFile)
@@ -114,6 +138,12 @@ class ImageSound(object):
 
 		return newFileName
 
+	'''
+	Name: getRawValues()
+	Description: get the raw values from the image file to be played
+	Parameters: none
+	Return Values: none
+	'''
 	def getRawValues(self):
 		image = Image.open(self.imageFile)
 		width, height = image.size
@@ -140,6 +170,15 @@ class ImageSound(object):
 
 		return triverse_value
 
+	'''
+	Name: getWAVformImg()
+	Description: generate the WAV file from the image file
+	Parameters:
+		filename -- full path name of the image file to play
+		rate -- sampling rate for the WAV file
+	Return Values:
+		newFileName -- full path name of the waver file
+	'''
 	def getWAVfromImg(self, filename = None, rate = 44100):
 		if filename is None:
 			filename = self.imageFile
@@ -150,7 +189,7 @@ class ImageSound(object):
 
 		return newFileName
 
-	def interpret_wav(self, raw_bytes, n_frames, n_channels, sample_width, interleaved = True):
+	def __interpret_wav(self, raw_bytes, n_frames, n_channels, sample_width, interleaved = True):
 		if sample_width == 1:
 			dtype = np.uint8 # unsigned char
 		elif sample_width == 2:
@@ -170,7 +209,14 @@ class ImageSound(object):
 
 		return channels
 
-	def play(self, filename):
+	'''
+	Name: __play()
+	Description: Plays any WAV files
+	Parameters:
+		filename -- full path of the WAV file to paly
+	Return Values: none
+	'''
+	def __play(self, filename):
 		CHUNK = 1024
 
 		# wf = wave.open(sys.argv[1], 'rb')
@@ -200,19 +246,42 @@ class ImageSound(object):
 		# close PyAudio (5)
 		p.terminate()
 
+	'''
+	Name: playImage()
+	Description: plays the image file without any filters
+	Parameters:
+		filename -- full path of the image file to play 
+		rate -- sampling rate for the audio 
+	Return Values: none
+	'''
 	def playImage(self, filename = None, rate = 44100):
 		newFileName = self.getWAVfromImg(filename, rate)
 		print("playing raw image")
-		self.play(newFileName)
+		self.__play(newFileName)
 
+	'''
+	Name: playFilteredImage()
+	Description: plays the image file with filtered sound
+	Parameters: none
+	Return Values: none
+	'''
 	def playFilteredImage(self):
 		fName = self.filterSound()
 		print("playing filtered image")
-		self.play(fName)
+		self.__play(fName)
 
+	'''
+	Name: resize()
+	Description: resize any image to a square image
+	Parameters:
+		image -- image to resize
+		size -- size of the image
+		t -- type of algorithm
+	Return Values: resized image
+	'''
 	def resize(self, image, size, t = Image.NEAREST):
 		return image.resize((size, size), t)
 
-	def running_mean(self, x, windowSize):
+	def __running_mean(self, x, windowSize):
 		cumsum = np.cumsum(np.insert(x, 0, 0)) 
 		return (cumsum[windowSize:] - cumsum[:-windowSize]) / windowSize	
